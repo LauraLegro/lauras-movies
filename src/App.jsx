@@ -132,7 +132,7 @@ function App() {
       <Butterflies />
       <div className="movie-app">
         <div className="movie-header">
-          <h1>Laura's Movies</h1>
+          <h1>Laura's Movie</h1>
           <button className="theme-toggle" onClick={toggleTheme}>
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
