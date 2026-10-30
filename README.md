@@ -1,4 +1,4 @@
-# Laura's Movie
+# Laura's Movies
 
 A small React + Vite app for keeping a personal movie list. Built while practicing React.
 
