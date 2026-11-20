@@ -2,14 +2,29 @@ import { useEffect, useState } from "react";
 
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 
+// A self-contained placeholder poster (inline SVG, no network needed) so the
+// list always looks right even without a TMDB key or outbound access.
+function placeholderPoster(title) {
+  const letter = (title.trim()[0] || "?").toUpperCase();
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="92" height="92" viewBox="0 0 92 92"><rect width="92" height="92" rx="10" fill="#c7a6f5"/><text x="46" y="60" font-family="system-ui, sans-serif" font-size="46" font-weight="700" fill="#ffffff" text-anchor="middle">${letter}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 function Movie({ title, onDelete, posterPath }) {
   const imageUrl = posterPath
     ? `https://image.tmdb.org/t/p/w92${posterPath}`
-    : `https://picsum.photos/seed/${encodeURIComponent(title)}/40`;
+    : placeholderPoster(title);
 
   return (
     <li className="movie">
-      <img className="movie-thumb" src={imageUrl} alt={title} />
+      <img
+        className="movie-thumb"
+        src={imageUrl}
+        alt={title}
+        onError={(e) => {
+          e.currentTarget.src = placeholderPoster(title);
+        }}
+      />
       <span>{title}</span>
       <button className="delete-btn" onClick={() => onDelete(title)}>
         X
@@ -102,6 +117,8 @@ function App() {
   }
 
   useEffect(() => {
+    // Without a configured key, don't hit TMDB at all — just use placeholders.
+    if (!TMDB_API_KEY) return;
     movies.forEach((title) => {
       if (title in posters) return;
       fetch(
@@ -109,9 +126,9 @@ function App() {
           title,
         )}`,
       )
-        .then((res) => res.json())
+        .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          const posterPath = data.results?.[0]?.poster_path ?? null;
+          const posterPath = data?.results?.[0]?.poster_path ?? null;
           setPosters((prev) => ({ ...prev, [title]: posterPath }));
         })
         .catch(() => setPosters((prev) => ({ ...prev, [title]: null })));
