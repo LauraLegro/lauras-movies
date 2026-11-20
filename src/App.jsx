@@ -149,10 +149,27 @@ function Butterflies() {
 
 let manualId = 0;
 
+const STORAGE_KEY = "lauras-movies";
+
+const DEFAULT_MOVIES = [
+  { key: "tmdb-348", tmdbId: 348, title: "Alien", year: "1979", posterPath: "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg", watched: false },
+];
+
+function loadMovies() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    // ignore unreadable/corrupt storage and fall back to defaults
+  }
+  return DEFAULT_MOVIES;
+}
+
 function App() {
-  const [movies, setMovies] = useState([
-    { key: "tmdb-348", tmdbId: 348, title: "Alien", year: "1979", posterPath: "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg", watched: false },
-  ]);
+  const [movies, setMovies] = useState(loadMovies);
   const [text, setText] = useState("");
   const [candidates, setCandidates] = useState(null); // null = no active search
   const [status, setStatus] = useState("idle"); // idle | searching | error
@@ -170,6 +187,14 @@ function App() {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
+    } catch {
+      // ignore storage write failures (e.g. private mode / quota)
+    }
+  }, [movies]);
+
   function toggleTheme() {
     setTheme((t) => (t === "dark" ? "light" : "dark"));
   }
@@ -179,7 +204,7 @@ function App() {
     if (!clean) return;
     setMovies((prev) => [
       ...prev,
-      { key: `manual-${manualId++}`, tmdbId: null, title: clean, year: "", posterPath: null, watched: false },
+      { key: `manual-${Date.now()}-${manualId++}`, tmdbId: null, title: clean, year: "", posterPath: null, watched: false },
     ]);
     setText("");
     setCandidates(null);
