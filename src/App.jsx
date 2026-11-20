@@ -16,6 +16,12 @@ function posterUrl(posterPath, title, size = "w92") {
     : placeholderPoster(title);
 }
 
+function tmdbLink(movie) {
+  return movie.tmdbId
+    ? `https://www.themoviedb.org/movie/${movie.tmdbId}`
+    : `https://www.themoviedb.org/search?query=${encodeURIComponent(movie.title)}`;
+}
+
 function Movie({ movie, onDelete }) {
   return (
     <li className="movie">
@@ -28,7 +34,15 @@ function Movie({ movie, onDelete }) {
         }}
       />
       <span>
-        {movie.title}
+        <a
+          className="movie-link"
+          href={tmdbLink(movie)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`View ${movie.title} on TMDB`}
+        >
+          {movie.title}
+        </a>
         {movie.year ? <small className="movie-year"> ({movie.year})</small> : null}
       </span>
       <button className="delete-btn" onClick={() => onDelete(movie.key)}>
@@ -124,7 +138,7 @@ let manualId = 0;
 
 function App() {
   const [movies, setMovies] = useState([
-    { key: "tmdb-348", title: "Alien", year: "1979", posterPath: "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg" },
+    { key: "tmdb-348", tmdbId: 348, title: "Alien", year: "1979", posterPath: "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg" },
   ]);
   const [text, setText] = useState("");
   const [candidates, setCandidates] = useState(null); // null = no active search
@@ -152,7 +166,7 @@ function App() {
     if (!clean) return;
     setMovies((prev) => [
       ...prev,
-      { key: `manual-${manualId++}`, title: clean, year: "", posterPath: null },
+      { key: `manual-${manualId++}`, tmdbId: null, title: clean, year: "", posterPath: null },
     ]);
     setText("");
     setCandidates(null);
@@ -195,6 +209,7 @@ function App() {
       ...prev,
       {
         key: `tmdb-${result.id}`,
+        tmdbId: result.id,
         title: result.title,
         year: (result.release_date || "").slice(0, 4),
         posterPath: result.poster_path ?? null,
