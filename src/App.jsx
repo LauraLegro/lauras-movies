@@ -22,9 +22,22 @@ function tmdbLink(movie) {
     : `https://www.themoviedb.org/search?query=${encodeURIComponent(movie.title)}`;
 }
 
-function Movie({ movie, onDelete }) {
+function Movie({ movie, onDelete, onToggleWatched }) {
   return (
-    <li className="movie">
+    <li className={movie.watched ? "movie watched" : "movie"}>
+      <button
+        className="watch-toggle"
+        onClick={() => onToggleWatched(movie.key)}
+        aria-pressed={movie.watched}
+        aria-label={
+          movie.watched
+            ? `Mark ${movie.title} as not watched`
+            : `Mark ${movie.title} as watched`
+        }
+        title={movie.watched ? "Watched — click to unmark" : "Mark as watched"}
+      >
+        {movie.watched ? "✓" : ""}
+      </button>
       <img
         className="movie-thumb"
         src={posterUrl(movie.posterPath, movie.title)}
@@ -138,7 +151,7 @@ let manualId = 0;
 
 function App() {
   const [movies, setMovies] = useState([
-    { key: "tmdb-348", tmdbId: 348, title: "Alien", year: "1979", posterPath: "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg" },
+    { key: "tmdb-348", tmdbId: 348, title: "Alien", year: "1979", posterPath: "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg", watched: false },
   ]);
   const [text, setText] = useState("");
   const [candidates, setCandidates] = useState(null); // null = no active search
@@ -166,7 +179,7 @@ function App() {
     if (!clean) return;
     setMovies((prev) => [
       ...prev,
-      { key: `manual-${manualId++}`, tmdbId: null, title: clean, year: "", posterPath: null },
+      { key: `manual-${manualId++}`, tmdbId: null, title: clean, year: "", posterPath: null, watched: false },
     ]);
     setText("");
     setCandidates(null);
@@ -213,6 +226,7 @@ function App() {
         title: result.title,
         year: (result.release_date || "").slice(0, 4),
         posterPath: result.poster_path ?? null,
+        watched: false,
       },
     ]);
     setText("");
@@ -228,6 +242,12 @@ function App() {
 
   function deleteMovie(key) {
     setMovies((prev) => prev.filter((m) => m.key !== key));
+  }
+
+  function toggleWatched(key) {
+    setMovies((prev) =>
+      prev.map((m) => (m.key === key ? { ...m, watched: !m.watched } : m)),
+    );
   }
 
   return (
@@ -292,7 +312,12 @@ function App() {
 
         <ul className="movie-list">
           {movies.map((m) => (
-            <Movie key={m.key} movie={m} onDelete={deleteMovie} />
+            <Movie
+              key={m.key}
+              movie={m}
+              onDelete={deleteMovie}
+              onToggleWatched={toggleWatched}
+            />
           ))}
         </ul>
       </div>

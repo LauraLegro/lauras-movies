@@ -339,6 +339,44 @@ code {
   flex-shrink: 0;
 }
 
+.watch-toggle {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 2px solid var(--accent-border);
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.watch-toggle:hover {
+  border-color: var(--accent);
+}
+
+.movie.watched .watch-toggle {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.movie.watched .movie-thumb {
+  opacity: 0.5;
+}
+
+.movie.watched .movie-link {
+  color: var(--text);
+  text-decoration: line-through;
+}
+
 .delete-btn {
   width: 24px;
   height: 24px;
