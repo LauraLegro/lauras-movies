@@ -1,35 +1,60 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 
 // A self-contained placeholder poster (inline SVG, no network needed) so the
-// list always looks right even without a TMDB key or outbound access.
+// list always looks right even without a TMDB key or a chosen poster.
 function placeholderPoster(title) {
   const letter = (title.trim()[0] || "?").toUpperCase();
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="92" height="92" viewBox="0 0 92 92"><rect width="92" height="92" rx="10" fill="#c7a6f5"/><text x="46" y="60" font-family="system-ui, sans-serif" font-size="46" font-weight="700" fill="#ffffff" text-anchor="middle">${letter}</text></svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-function Movie({ title, onDelete, posterPath }) {
-  const imageUrl = posterPath
-    ? `https://image.tmdb.org/t/p/w92${posterPath}`
+function posterUrl(posterPath, title, size = "w92") {
+  return posterPath
+    ? `https://image.tmdb.org/t/p/${size}${posterPath}`
     : placeholderPoster(title);
+}
 
+function Movie({ movie, onDelete }) {
   return (
     <li className="movie">
       <img
         className="movie-thumb"
-        src={imageUrl}
-        alt={title}
+        src={posterUrl(movie.posterPath, movie.title)}
+        alt={movie.title}
         onError={(e) => {
-          e.currentTarget.src = placeholderPoster(title);
+          e.currentTarget.src = placeholderPoster(movie.title);
         }}
       />
-      <span>{title}</span>
-      <button className="delete-btn" onClick={() => onDelete(title)}>
+      <span>
+        {movie.title}
+        {movie.year ? <small className="movie-year"> ({movie.year})</small> : null}
+      </span>
+      <button className="delete-btn" onClick={() => onDelete(movie.key)}>
         X
       </button>
     </li>
+  );
+}
+
+function Candidate({ result, onPick }) {
+  const year = (result.release_date || "").slice(0, 4);
+  return (
+    <button type="button" className="candidate" onClick={() => onPick(result)}>
+      <img
+        className="candidate-thumb"
+        src={posterUrl(result.poster_path, result.title)}
+        alt={result.title}
+        onError={(e) => {
+          e.currentTarget.src = placeholderPoster(result.title);
+        }}
+      />
+      <span className="candidate-title">
+        {result.title}
+        {year ? <small className="candidate-year"> ({year})</small> : null}
+      </span>
+    </button>
   );
 }
 
@@ -95,10 +120,16 @@ function Butterflies() {
   );
 }
 
+let manualId = 0;
+
 function App() {
-  const [movies, setMovies] = useState(["Alien"]);
+  const [movies, setMovies] = useState([
+    { key: "tmdb-348", title: "Alien", year: "1979", posterPath: "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg" },
+  ]);
   const [text, setText] = useState("");
-  const [posters, setPosters] = useState({});
+  const [candidates, setCandidates] = useState(null); // null = no active search
+  const [status, setStatus] = useState("idle"); // idle | searching | error
+  const searchSeq = useRef(0);
   const [theme, setTheme] = useState(
     () =>
       localStorage.getItem("theme") ||
@@ -116,32 +147,72 @@ function App() {
     setTheme((t) => (t === "dark" ? "light" : "dark"));
   }
 
-  useEffect(() => {
-    // Without a configured key, don't hit TMDB at all — just use placeholders.
-    if (!TMDB_API_KEY) return;
-    movies.forEach((title) => {
-      if (title in posters) return;
-      fetch(
-        `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(
-          title,
-        )}`,
-      )
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          const posterPath = data?.results?.[0]?.poster_path ?? null;
-          setPosters((prev) => ({ ...prev, [title]: posterPath }));
-        })
-        .catch(() => setPosters((prev) => ({ ...prev, [title]: null })));
-    });
-  }, [movies, posters]);
-
-  function addMovie() {
-    setMovies([...movies, text]);
+  function addExact(title) {
+    const clean = title.trim();
+    if (!clean) return;
+    setMovies((prev) => [
+      ...prev,
+      { key: `manual-${manualId++}`, title: clean, year: "", posterPath: null },
+    ]);
     setText("");
+    setCandidates(null);
+    setStatus("idle");
   }
 
-  function deleteMovie(title) {
-    setMovies(movies.filter((m) => m !== title));
+  async function searchMovies() {
+    const query = text.trim();
+    if (!query) return;
+
+    // No key configured → can't search TMDB, just add the title as-is.
+    if (!TMDB_API_KEY) {
+      addExact(query);
+      return;
+    }
+
+    const seq = ++searchSeq.current;
+    setStatus("searching");
+    setCandidates(null);
+    try {
+      const res = await fetch(
+        `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(
+          query,
+        )}`,
+      );
+      if (seq !== searchSeq.current) return; // a newer search superseded this one
+      const data = res.ok ? await res.json() : null;
+      const results = (data?.results ?? []).slice(0, 6);
+      setCandidates(results);
+      setStatus("idle");
+    } catch {
+      if (seq !== searchSeq.current) return;
+      setStatus("error");
+      setCandidates([]);
+    }
+  }
+
+  function pickCandidate(result) {
+    setMovies((prev) => [
+      ...prev,
+      {
+        key: `tmdb-${result.id}`,
+        title: result.title,
+        year: (result.release_date || "").slice(0, 4),
+        posterPath: result.poster_path ?? null,
+      },
+    ]);
+    setText("");
+    setCandidates(null);
+    setStatus("idle");
+  }
+
+  function cancelSearch() {
+    searchSeq.current++;
+    setCandidates(null);
+    setStatus("idle");
+  }
+
+  function deleteMovie(key) {
+    setMovies((prev) => prev.filter((m) => m.key !== key));
   }
 
   return (
@@ -154,22 +225,59 @@ function App() {
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
         </div>
-        <div className="movie-form">
+        <form
+          className="movie-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            searchMovies();
+          }}
+        >
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Add a movie..."
+            placeholder="Search a movie..."
           />
-          <button onClick={addMovie}>Add</button>
-        </div>
+          <button type="submit" disabled={status === "searching"}>
+            {status === "searching" ? "…" : "Search"}
+          </button>
+        </form>
+
+        {candidates !== null && (
+          <div className="candidates">
+            <div className="candidates-head">
+              <span>
+                {status === "error"
+                  ? "Couldn't reach TMDB."
+                  : candidates.length
+                    ? "Pick the right movie:"
+                    : "No matches found."}
+              </span>
+              <button
+                type="button"
+                className="candidates-close"
+                onClick={cancelSearch}
+              >
+                X
+              </button>
+            </div>
+            {candidates.map((result) => (
+              <Candidate key={result.id} result={result} onPick={pickCandidate} />
+            ))}
+            {text.trim() && (
+              <button
+                type="button"
+                className="candidate-plain"
+                onClick={() => addExact(text)}
+              >
+                None of these — add “{text.trim()}” anyway
+              </button>
+            )}
+          </div>
+        )}
+
         <ul className="movie-list">
           {movies.map((m) => (
-            <Movie
-              key={m}
-              title={m}
-              onDelete={deleteMovie}
-              posterPath={posters[m]}
-            />
+            <Movie key={m.key} movie={m} onDelete={deleteMovie} />
           ))}
         </ul>
       </div>
